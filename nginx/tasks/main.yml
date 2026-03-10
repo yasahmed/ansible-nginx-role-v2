@@ -1,0 +1,14 @@
+---
+- name: Include OS-specific variables
+  ansible.builtin.include_vars: "{{ ansible_os_family | lower }}.yml"
+  tags: always
+
+- name: Install NGINX
+  ansible.builtin.include_tasks: install.yml
+
+- name: Configure NGINX
+  ansible.builtin.include_tasks: config.yml
+
+- name: Manage nginx service
+  ansible.builtin.include_tasks: service.yml
+  tags: nginx-service

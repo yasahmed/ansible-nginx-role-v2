@@ -1,0 +1,42 @@
+---
+- name: Ensure sites-enabled directory exists
+  ansible.builtin.file:
+    path: "{{ nginx_sites_enabled_dir }}"
+    state: directory
+    mode: '0755'
+  become: true
+
+- name: Deploy global-headers.conf
+  ansible.builtin.template:
+    src: global-headers.conf.j2
+    dest: "{{ nginx_global_conf_dir }}/global-headers.conf"
+    mode: '0644'
+  become: true
+  notify: Reload NGINX
+
+- name: Deploy global-security.conf
+  ansible.builtin.template:
+    src: global-security.conf.j2
+    dest: "{{ nginx_global_conf_dir }}/global-security.conf"
+    mode: '0644'
+  become: true
+  notify: Reload NGINX
+
+- name: Generate virtual host configs
+  template:
+    src: vhost.conf.j2
+    dest: "/etc/nginx/sites-enabled/{{ item.filename | default(item.server_name[0] ~ '.conf') }}"
+    mode: '0644'
+  loop: "{{ virtual_hosts }}"
+  notify: Reload NGINX
+
+- name: Deploy main nginx.conf from template
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: "{{ nginx_conf_dir }}/nginx.conf"
+    owner: root
+    group: root
+    mode: '0644'
+    validate: nginx -t -c %s
+  become: true
+  notify: Reload NGINX

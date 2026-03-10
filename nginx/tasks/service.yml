@@ -1,0 +1,9 @@
+---
+- name: Ensure nginx is {{ 'enabled' if nginx_enabled | bool else 'disabled' }} and {{ 'started' if nginx_state == 'present' else 'stopped' }}
+  ansible.builtin.service:
+    name: "{{ nginx_service_name }}"
+    state: "{{ 'started' if nginx_state == 'present' else 'stopped' }}"
+    enabled: "{{ nginx_enabled | bool }}"
+    masked: "{{ not nginx_enabled | bool and nginx_state != 'present' }}"
+  become: true
+  tags: nginx-service

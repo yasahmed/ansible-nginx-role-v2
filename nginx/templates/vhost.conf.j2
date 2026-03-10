@@ -1,0 +1,101 @@
+# =============================================================================
+# Virtual Host: {{ item.server_name | first | default('unnamed') }}
+# Filename:    {{ item.filename | default(item.server_name | first ~ '.conf') }}
+# Generated:   {{ generation_timestamp | default('n/a') }}
+# =============================================================================
+
+server {
+    listen {{ item.listen | default('80') }};
+    {% if item.listen_ipv6 | default(true) -%}
+    listen [::]:{{ item.listen | default('80') }};
+    {%- endif %}
+
+    server_name {{ item.server_name | join(' ') }};
+
+
+
+
+    {% if item.access_log is sameas false -%}
+    access_log off;
+    {%- elif item.access_log is defined -%}
+    access_log {{ item.access_log }};
+    {%- else -%}
+    access_log /var/log/nginx/{{ item.server_name | first | replace('.', '_') }}-access.log;
+    {%- endif %}
+
+
+    {% if item.error_log is sameas false -%}
+    error_log off;
+    {%- elif item.error_log is defined -%}
+    error_log {{ item.error_log }};
+    {%- else -%}
+    error_log /var/log/nginx/{{ item.server_name | first | replace('.', '_') }}-error.log;
+    {%- endif %}
+
+    include /etc/nginx/conf.d/*.conf;
+
+    # ─── SSL (if enabled) ──────────────────────────────────────────────
+    {% if item.ssl | default(false) %}
+    listen {{ item.ssl_listen | default('443 ssl http2') }};
+    {% if item.listen_ipv6 | default(true) -%}
+    listen [::]:{{ item.ssl_listen | default('443 ssl http2') }};
+    {%- endif %}
+
+    ssl_certificate      {{ item.ssl_cert     | default('/etc/letsencrypt/live/' ~ item.server_name[0] ~ '/fullchain.pem') }};
+    ssl_certificate_key  {{ item.ssl_key      | default('/etc/letsencrypt/live/' ~ item.server_name[0] ~ '/privkey.pem') }};
+
+    ssl_stapling         on;
+    ssl_stapling_verify  on;
+    {% endif %}
+
+    # HTTP → HTTPS redirect (most common pattern)
+    {% if item.force_https | default(false) and item.ssl | default(false) %}
+    if ($scheme != "https") {
+        return 301 https://$host$request_uri;
+    }
+    {% endif %}
+
+    # ─── Root / index (global for this vhost) ──────────────────────────
+    {% if item.root is defined -%}
+    root {{ item.root }};
+    index {{ item.index_files | default('index.html index.htm') }};
+    {%- endif %}
+
+    # ─── Locations ─────────────────────────────────────────────────────
+    {% for loc in item.locations | default([]) %}
+
+    location {{ loc.match | default('') }} {{ loc.path }} {
+        {% if loc.internal | default(false) %}internal;{% endif %}
+        {% if loc.proxy is defined %}
+        
+        proxy_pass {{ loc.proxy }};
+        proxy_http_version                 1.1;
+        proxy_set_header Host {{ loc.proxy_settings.proxy_set_headers.Host | default('$host') }};
+        proxy_set_header X-Real-IP {{ loc.proxy_settings.proxy_set_headers['X-Real-IP'] | default('$remote_addr') }};
+        proxy_set_header X-Forwarded-For {{ loc.proxy_settings.proxy_set_headers['X-Forwarded-For'] | default('$proxy_add_x_forwarded_for') }};
+        proxy_set_header X-Forwarded-Proto {{ loc.proxy_settings.proxy_set_headers['X-Forwarded-Proto'] | default('$scheme') }};
+        proxy_set_header Connection {{ loc.proxy_settings.proxy_set_headers.Connection | default('""') }};
+
+
+        {% if loc.proxy_read_timeout is defined %}proxy_read_timeout {{ loc.proxy_read_timeout }};{% endif %}
+        {% if loc.websocket | default(false) %}
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        {% endif %}
+        {% endif %}
+
+        {% if loc.root is defined %}root {{ loc.root }};{% endif %}
+        {% if loc.alias is defined %}alias {{ loc.alias }};{% endif %}
+        {% if loc.try_files is defined %}try_files {{ loc.try_files }};{% endif %}
+
+        
+
+        
+    }
+    {% endfor %}
+
+
+    location /healthz {      
+        return 200 "healthy";
+    }
+}
