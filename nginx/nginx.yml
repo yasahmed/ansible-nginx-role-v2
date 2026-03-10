@@ -1,0 +1,7 @@
+---
+- name: Deploy basic NGINX cluster
+  hosts: nginx-cluster-1
+  become: true
+
+  roles:
+    - nginx
